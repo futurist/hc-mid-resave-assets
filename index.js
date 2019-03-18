@@ -12,10 +12,12 @@ const qs = require('qs');
 const ms = require('ms');
 const imageType = require('image-type');
 
+const check = require('./check');
+
 const defaultHeaders = {
-  'Cache-Control': 'public, immutable, max-age=' + ms('1y')/1000
+  'Cache-Control': 'public, immutable, max-age=' + ms('1y') / 1000
 }
-const defaultDir = 'public/images'
+const defaultDir = 'public/assets'
 
 module.exports = (app, appConfig) => {
   dotenv.config();
@@ -35,27 +37,39 @@ module.exports = (app, appConfig) => {
   const ossProtocol = _.get(appConfig, 'oss.protocol') || ''
   let ossDir = _.get(appConfig, 'oss.dir') || defaultDir
   ossDir = _.trim(ossDir, '/')
-  if(ossDir) ossDir += '/'
+  if (ossDir) ossDir += '/'
   const getOSSUrl = (filename) => `${ossProtocol}//${ossConfig.bucket}.${ossConfig.region}.aliyuncs.com/${filename}`
 
   debug(ossConfig);
   const client = new OSS(ossConfig);
-  
-  return (req, res, next = ()=>{}) => {
-    const {body, query, headers={}} = req;
+
+  return (req, res, next = () => {}) => {
+    const {
+      body,
+      query,
+      headers = {}
+    } = req;
     if (_.isEmpty(body)) {
       return next();
     }
 
     const headerResavePath = headers['x-resave-path'];
-    const resavePath = !_.isEmpty(headerResavePath) ? qs.parse(headers['x-resave-path']) : appConfig.resavePath;
-    const bodyStringArr = []
-    _.forEach(resavePath, (arr, type)=>{
-      arr.forEach(path=>{
+    const urlsToCheck = _.map(appConfig.resavePath, (v, k) => {
+      return [k, v.method];
+    })
+    const matchedPath = check(urlsToCheck, req.path, req.method);
+    console.log(matchedPath, urlsToCheck);
+    const resavePath = !_.isEmpty(headerResavePath) ? qs.parse(headers['x-resave-path']) : matchedPath && appConfig.resavePath[matchedPath[0]];
+    if (!resavePath) {
+      return next();
+    }
+    const bodyStringArr = [];
+    _.forEach(resavePath, (arr, type) => {
+      arr.forEach(path => {
         let doc = _.get(body, path);
-        if(!_.isString(doc) || !doc) return;
+        if (!_.isString(doc) || !doc) return;
         let html = doc;
-        if(/md|markdown/i.test(type)) {
+        if (/md|markdown/i.test(type)) {
           html = marked(doc);
         }
         bodyStringArr.push({
@@ -71,40 +85,56 @@ module.exports = (app, appConfig) => {
     debug(bodyStringArr);
 
     // get image links
-    const allLinks = _.uniq(_.flatten(bodyStringArr.map(x=>{
+    const allLinks = _.uniq(_.flatten(bodyStringArr.map(x => {
       const $ = cheerio.load(x.html);
-      return _.flatten($('img').map((i,e)=>{
+      return _.flatten($('img').map((i, e) => {
         return e.attribs.src
       }));
     })));
 
-    console.log('resave images:', allLinks);
-    
+    console.log('resave assets:', allLinks);
+
     Promise.all(allLinks.map(link => fetch(link)
       .then(r => r.buffer())
       .then(buffer => {
         const imgInfo = imageType(buffer);
-        if(imgInfo==null) {
-          return {link, error: new Error('not image file')};
+        if (imgInfo == null) {
+          return {
+            link,
+            error: new Error('not image file')
+          };
         }
         const filename = ossDir + newID() + '.' + imgInfo.ext;
         return client.put(filename, buffer, {
-          mime: imgInfo.mime,
-          headers: _.get(appConfig, 'oss.headers') || defaultHeaders
-        })
-        .then(result=>{
-          return {link, result};
-        }).catch(error=>{
-          return {link, error};
-        });
+            mime: imgInfo.mime,
+            headers: _.get(appConfig, 'oss.headers') || defaultHeaders
+          })
+          .then(result => {
+            return {
+              link,
+              result
+            };
+          }).catch(error => {
+            return {
+              link,
+              error
+            };
+          });
       })
       .catch(error => {
-        return {link, error};
+        return {
+          link,
+          error
+        };
       })
     )).then(results => {
       debug('results', results, Date.now() - start);
-      bodyStringArr.forEach(item=>{
-        results.forEach(({link, error, result}) => {
+      bodyStringArr.forEach(item => {
+        results.forEach(({
+          link,
+          error,
+          result
+        }) => {
           item.doc = replaceString(item.doc, link, result ? getOSSUrl(result.name) : '#');
         });
         _.set(body, item.path, item.doc);
