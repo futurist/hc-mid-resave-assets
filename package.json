@@ -20,6 +20,7 @@
     "linkify-it": "^2.1.0",
     "lodash": "^4.17.11",
     "marked": "^0.6.1",
+    "ms": "^2.1.1",
     "node-fetch": "^2.3.0",
     "qs": "^6.6.0",
     "replace-string": "^2.0.0",

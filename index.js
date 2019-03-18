@@ -1,9 +1,7 @@
 const pkg = require('./package.json');
 const debug = require('debug')(pkg.name);
-const path = require('path');
 const dotenv = require('dotenv');
 const assert = require('assert');
-const linkify = require('linkify-it')();
 const fetch = require('node-fetch');
 const replaceString = require('replace-string');
 const _ = require('lodash');
@@ -11,9 +9,13 @@ const OSS = require('ali-oss');
 const cheerio = require('cheerio');
 const marked = require('marked');
 const qs = require('qs');
+const ms = require('ms');
 const imageType = require('image-type');
 
-linkify.tlds(require('tlds'));
+const defaultHeaders = {
+  'Cache-Control': 'public, immutable, max-age=' + ms('1y')/1000
+}
+const defaultDir = 'public/images'
 
 module.exports = (app, appConfig) => {
   dotenv.config();
@@ -30,7 +32,13 @@ module.exports = (app, appConfig) => {
   assert(ossConfig.region, 'config.oss.region is empty!!');
   assert(ossConfig.bucket, 'config.oss.bucket is empty!!');
 
-  console.log(ossConfig);
+  const ossProtocol = _.get(appConfig, 'oss.protocol') || ''
+  let ossDir = _.get(appConfig, 'oss.dir') || defaultDir
+  ossDir = _.trim(ossDir, '/')
+  if(ossDir) ossDir += '/'
+  const getOSSUrl = (filename) => `${ossProtocol}//${ossConfig.bucket}.${ossConfig.region}.aliyuncs.com/${filename}`
+
+  debug(ossConfig);
   const client = new OSS(ossConfig);
   
   return (req, res, next = ()=>{}) => {
@@ -60,7 +68,7 @@ module.exports = (app, appConfig) => {
     })
 
     const start = Date.now();
-    console.log(bodyStringArr);
+    debug(bodyStringArr);
 
     // get image links
     const allLinks = _.uniq(_.flatten(bodyStringArr.map(x=>{
@@ -70,22 +78,23 @@ module.exports = (app, appConfig) => {
       }));
     })));
 
-    console.log(allLinks);
+    console.log('resave images:', allLinks);
     
     Promise.all(allLinks.map(link => fetch(link)
       .then(r => r.buffer())
       .then(buffer => {
         const imgInfo = imageType(buffer);
-        console.log(imgInfo);
         if(imgInfo==null) {
           return {link, error: new Error('not image file')};
         }
-        const filename = newID() + '.' + imgInfo.ext;
-        return client.put(filename, buffer)
+        const filename = ossDir + newID() + '.' + imgInfo.ext;
+        return client.put(filename, buffer, {
+          mime: imgInfo.mime,
+          headers: _.get(appConfig, 'oss.headers') || defaultHeaders
+        })
         .then(result=>{
           return {link, result};
         }).catch(error=>{
-          console.log(filename, error);
           return {link, error};
         });
       })
@@ -93,14 +102,14 @@ module.exports = (app, appConfig) => {
         return {link, error};
       })
     )).then(results => {
-      console.log(1234, results, Date.now() - start);
+      debug('results', results, Date.now() - start);
       bodyStringArr.forEach(item=>{
         results.forEach(({link, error, result}) => {
-          item.doc = replaceString(item.doc, link, result ? result.name : '#');
+          item.doc = replaceString(item.doc, link, result ? getOSSUrl(result.name) : '#');
         });
         _.set(body, item.path, item.doc);
       });
-      console.log(body);
+      debug('newBody', body);
       next();
     }).catch(err => {
       next(err);
