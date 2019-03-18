@@ -19,6 +19,9 @@ In file `config/config_default.js`
     middleware:{
         resaveAssets:{
             config: {
+                ignore: [
+                  '*://*.aliyuncs.com/*'  // url patterns
+                ],
                 resavePath: {
                   '/post/user/:id': {
                     method: 'post', // can be ignore
@@ -40,3 +43,6 @@ In file `config/config_default.js`
 }
 
 ```
+
+The `ignore` format can reference [url-match-patterns](https://github.com/nickclaw/url-match-patterns)
+
