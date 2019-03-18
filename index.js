@@ -6,7 +6,7 @@ const fetch = require('node-fetch');
 const replaceString = require('replace-string');
 const _ = require('lodash');
 const OSS = require('ali-oss');
-const cheerio = require('cheerio');
+const htmlparser = require("htmlparser2");
 const marked = require('marked');
 const qs = require('qs');
 const ms = require('ms');
@@ -86,10 +86,7 @@ module.exports = (app, appConfig) => {
 
     // get image links
     const allLinks = _.uniq(_.flatten(bodyStringArr.map(x => {
-      const $ = cheerio.load(x.html);
-      return _.flatten($('img').map((i, e) => {
-        return e.attribs.src
-      }));
+      return getLinksFromHTML(x.html);
     })));
 
     console.log('resave assets:', allLinks);
@@ -104,7 +101,7 @@ module.exports = (app, appConfig) => {
             error: new Error('not image file')
           };
         }
-        const filename = ossDir + newID() + '.' + imgInfo.ext;
+        const filename = ossDir + newID(appConfig, {link, buffer, imgInfo}) + '.' + imgInfo.ext;
         return client.put(filename, buffer, {
             mime: imgInfo.mime,
             headers: _.get(appConfig, 'oss.headers') || defaultHeaders
@@ -147,6 +144,22 @@ module.exports = (app, appConfig) => {
   };
 };
 
-function newID() {
-  return (Date.now() + Math.random()).toString(36).replace('.', '');
+function newID(appConfig, e) {
+  return _.isFunction(appConfig.getFileName)
+    ? appConfig.getFileName(e) 
+    : (Date.now() + Math.random()).toString(36).replace('.', '');
+}
+
+function getLinksFromHTML(html) {
+  var links = []
+  var parser = new htmlparser.Parser({
+    onopentag: function(name, attribs){
+      if(name == 'img') {
+        links.push(attribs.src);
+      }
+    },
+  }, {decodeEntities: false});
+  parser.write(html);
+  parser.end();
+  return links;
 }
