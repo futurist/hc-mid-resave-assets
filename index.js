@@ -90,12 +90,16 @@ module.exports = (app, appConfig) => {
     // get image links
     const allLinks = _.uniq(_.flatten(bodyStringArr.map(x => {
       return getLinksFromHTML(x.html);
-    }))).filter(v=>
-      _.isFunction(appConfig.ignore)
-      ? appConfig.ignore({link: v, arr: bodyStringArr, req, res})
-      : [
-        '*://*.aliyuncs.com/*'
-      ].concat(appConfig.ignore).filter(Boolean).every(x=>!urlMatch(x, v))
+    }))).filter(v=>{
+      if(v.startsWith('//')) {
+        v = 'http:' + v
+      }
+      return _.isFunction(appConfig.ignore)
+        ? appConfig.ignore({link: v, arr: bodyStringArr, req, res})
+        : [
+          '*://*.aliyuncs.com/*'
+        ].concat(appConfig.ignore).filter(Boolean).every(x=>!urlMatch(x, v))
+      }
     );
 
     if (_.isEmpty(allLinks)) {
