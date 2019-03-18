@@ -21,6 +21,7 @@ In file `config/config_default.js`
             config: {
                 resavePath: {
                   '/post/user/:id': {
+                    method: 'post', // can be ignore
                     md: [],
                     rich: []
                   }
@@ -38,13 +39,4 @@ In file `config/config_default.js`
     }
 }
 
-```
-
-Also set `req.headers['x-resave-path']` to override `req.resavePath[path]`, the header value should be object which will be passed into `qs.stringify`, like below:
-
-```json
-{
-  "md": ["path1", "path2"],
-  "rich": ["path1", "path2"]
-}
 ```
