@@ -6,8 +6,9 @@ const fetch = require('node-fetch');
 const replaceString = require('replace-string');
 const _ = require('lodash');
 const OSS = require('ali-oss');
-const htmlparser = require("htmlparser2");
+const htmlparser = require('htmlparser2');
 const marked = require('marked');
+const uuid = require('uuid/v4');
 const qs = require('qs');
 const ms = require('ms');
 const imageType = require('image-type');
@@ -16,8 +17,8 @@ const check = require('./check');
 
 const defaultHeaders = {
   'Cache-Control': 'public, immutable, max-age=' + ms('1y') / 1000
-}
-const defaultDir = 'public/assets'
+};
+const defaultDir = 'public/assets';
 
 module.exports = (app, appConfig) => {
   dotenv.config();
@@ -27,18 +28,18 @@ module.exports = (app, appConfig) => {
     accessKeySecret: _.get(appConfig, 'oss.accessKeySecret') || process.env.ALIOSS_AK,
     region: _.get(appConfig, 'oss.region') || process.env.ALIOSS_REGION,
     bucket: _.get(appConfig, 'oss.bucket') || process.env.ALIOSS_BUCKET,
-  }
+  };
 
   assert(ossConfig.accessKeyId, 'config.oss.accessKeyId is empty!!');
   assert(ossConfig.accessKeySecret, 'config.oss.accessKeySecret is empty!!');
   assert(ossConfig.region, 'config.oss.region is empty!!');
   assert(ossConfig.bucket, 'config.oss.bucket is empty!!');
 
-  const ossProtocol = _.get(appConfig, 'oss.protocol') || ''
-  let ossDir = _.get(appConfig, 'oss.dir') || defaultDir
-  ossDir = _.trim(ossDir, '/')
-  if (ossDir) ossDir += '/'
-  const getOSSUrl = (filename) => `${ossProtocol}//${ossConfig.bucket}.${ossConfig.region}.aliyuncs.com/${filename}`
+  const ossProtocol = _.get(appConfig, 'oss.protocol') || '';
+  let ossDir = _.get(appConfig, 'oss.dir') || defaultDir;
+  ossDir = _.trim(ossDir, '/');
+  if (ossDir) ossDir += '/';
+  const getOSSUrl = (filename) => `${ossProtocol}//${ossConfig.bucket}.${ossConfig.region}.aliyuncs.com/${filename}`;
 
   debug(ossConfig);
   const client = new OSS(ossConfig);
@@ -56,7 +57,7 @@ module.exports = (app, appConfig) => {
     const headerResavePath = headers['x-resave-path'];
     const urlsToCheck = _.map(appConfig.resavePath, (v, k) => {
       return [k, v.method];
-    })
+    });
     const matchedPath = check(urlsToCheck, req.path, req.method);
     const resavePath = !_.isEmpty(headerResavePath) ? qs.parse(headers['x-resave-path']) : matchedPath && appConfig.resavePath[matchedPath[0]];
     if (!resavePath) {
@@ -64,21 +65,23 @@ module.exports = (app, appConfig) => {
     }
     const bodyStringArr = [];
     _.forEach(resavePath, (arr, type) => {
-      arr.forEach(path => {
-        let doc = _.get(body, path);
-        if (!_.isString(doc) || !doc) return;
-        let html = doc;
-        if (/md|markdown/i.test(type)) {
-          html = marked(doc);
-        }
-        bodyStringArr.push({
-          type,
-          path,
-          doc,
-          html
-        })
-      })
-    })
+      if (/rich|md|markdown/i.test(type) && _.isArray(arr)) {
+        arr.forEach(path => {
+          let doc = _.get(body, path);
+          if (!_.isString(doc) || !doc) return;
+          let html = doc;
+          if (/md|markdown/i.test(type)) {
+            html = marked(doc);
+          }
+          bodyStringArr.push({
+            type,
+            path,
+            doc,
+            html
+          });
+        });
+      }
+    });
 
     const start = Date.now();
     debug(bodyStringArr);
@@ -88,8 +91,11 @@ module.exports = (app, appConfig) => {
       return getLinksFromHTML(x.html);
     })));
 
-    console.log('resave assets:', allLinks);
+    if (_.isEmpty(allLinks)) {
+      return next();
+    }
 
+    console.log('resave assets:', allLinks);
     Promise.all(allLinks.map(link => fetch(link)
       .then(r => r.buffer())
       .then(buffer => {
@@ -102,9 +108,9 @@ module.exports = (app, appConfig) => {
         }
         const filename = ossDir + newID(appConfig, {link, buffer, imgInfo}) + '.' + imgInfo.ext;
         return client.put(filename, buffer, {
-            mime: imgInfo.mime,
-            headers: _.get(appConfig, 'oss.headers') || defaultHeaders
-          })
+          mime: imgInfo.mime,
+          headers: _.get(appConfig, 'oss.headers') || defaultHeaders
+        })
           .then(result => {
             return {
               link,
@@ -143,17 +149,17 @@ module.exports = (app, appConfig) => {
   };
 };
 
-function newID(appConfig, e) {
-  return _.isFunction(appConfig.getFileName)
-    ? appConfig.getFileName(e) 
-    : (Date.now() + Math.random()).toString(36).replace('.', '');
+function newID(appConfig={}, e) {
+  return _.isFunction(appConfig.getFileName) ?
+    appConfig.getFileName(e)
+    : uuid().replace(/-/g, '');
 }
 
 function getLinksFromHTML(html) {
-  var links = []
+  var links = [];
   var parser = new htmlparser.Parser({
-    onopentag: function(name, attribs){
-      if(name == 'img') {
+    onopentag: function (name, attribs) {
+      if (name == 'img') {
         links.push(attribs.src);
       }
     },

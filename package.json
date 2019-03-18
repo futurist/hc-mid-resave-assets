@@ -21,7 +21,8 @@
     "node-fetch": "^2.3.0",
     "path-to-regexp": "^3.0.0",
     "qs": "^6.6.0",
-    "replace-string": "^2.0.0"
+    "replace-string": "^2.0.0",
+    "uuid": "^3.3.2"
   },
   "devDependencies": {
     "eslint": "^5.15.1",
