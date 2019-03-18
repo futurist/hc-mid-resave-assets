@@ -95,7 +95,7 @@ module.exports = (app, appConfig) => {
       ? appConfig.ignore({link: v, arr: bodyStringArr, req, res})
       : [
         '*://*.aliyuncs.com/*'
-      ].concat(appConfig.ignore).every(x=>x && !urlMatch(x, v))
+      ].concat(appConfig.ignore).filter(Boolean).every(x=>!urlMatch(x, v))
     );
 
     if (_.isEmpty(allLinks)) {
@@ -149,6 +149,9 @@ module.exports = (app, appConfig) => {
         _.set(body, item.path, item.doc);
       });
       debug('newBody', body);
+      if(_.isFunction(appConfig.callback)) {
+        appConfig.callback({req, res, arr: bodyStringArr, results});
+      }
       next();
     }).catch(err => {
       next(err);
