@@ -58,7 +58,6 @@ module.exports = (app, appConfig) => {
       return [k, v.method];
     })
     const matchedPath = check(urlsToCheck, req.path, req.method);
-    console.log(matchedPath, urlsToCheck);
     const resavePath = !_.isEmpty(headerResavePath) ? qs.parse(headers['x-resave-path']) : matchedPath && appConfig.resavePath[matchedPath[0]];
     if (!resavePath) {
       return next();
