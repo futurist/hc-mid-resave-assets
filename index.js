@@ -13,6 +13,7 @@ const qs = require('qs');
 const ms = require('ms');
 const urlMatch = require('url-match-patterns').default;
 const imageType = require('image-type');
+const entities = require("entities");
 
 const check = require('./check');
 
@@ -91,11 +92,12 @@ module.exports = (app, appConfig) => {
     const allLinks = _.uniq(_.flatten(bodyStringArr.map(x => {
       return getLinksFromHTML(x.html);
     }))).filter(v=>{
+      const e = {link: v, arr: bodyStringArr, req, res};
       if(v.startsWith('//')) {
-        v = 'http:' + v
+        v = (_.isFunction(appConfig.getProtocol) ? appConfig.getProtocol(e) : req.protocol) + v
       }
       return _.isFunction(appConfig.ignore)
-        ? appConfig.ignore({link: v, arr: bodyStringArr, req, res})
+        ? appConfig.ignore(e)
         : [
           '*://*.aliyuncs.com/*'
         ].concat(appConfig.ignore).filter(Boolean).every(x=>!urlMatch(x, v))
@@ -107,7 +109,7 @@ module.exports = (app, appConfig) => {
     }
 
     console.log('resave assets:', allLinks);
-    Promise.all(allLinks.map(link => fetch(link)
+    Promise.all(allLinks.map(link => fetch(entities.decodeHTML(link))
       .then(r => r.buffer())
       .then(buffer => {
         const imgInfo = imageType(buffer);
