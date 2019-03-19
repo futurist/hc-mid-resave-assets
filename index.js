@@ -67,7 +67,7 @@ module.exports = (app, appConfig) => {
     }
     const bodyStringArr = [];
     _.forEach(resavePath, (arr, type) => {
-      if (/rich|md|markdown/i.test(type) && _.isArray(arr)) {
+      if (/^(?:rich|html|md|markdown)$/i.test(type) && _.isArray(arr)) {
         arr.forEach(path => {
           let doc = _.get(body, path);
           if (!_.isString(doc) || !doc) return;
