@@ -14,6 +14,8 @@ const ms = require('ms');
 const urlMatch = require('url-match-patterns').default;
 const imageType = require('image-type');
 const entities = require("entities");
+const MarkdownIt = require('markdown-it');
+const md = new MarkdownIt('default');
 
 const check = require('./check');
 
@@ -73,7 +75,7 @@ module.exports = (app, appConfig) => {
           if (!_.isString(doc) || !doc) return;
           let html = doc;
           if (/md|markdown/i.test(type)) {
-            html = marked(doc);
+            html = md.render(doc) + '\n' + doc;
           }
           bodyStringArr.push({
             type,
