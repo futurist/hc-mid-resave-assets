@@ -94,7 +94,7 @@ module.exports = (app, appConfig) => {
     }))).filter(v=>{
       const e = {link: v, arr: bodyStringArr, req, res};
       if(v.startsWith('//')) {
-        v = (_.isFunction(appConfig.getProtocol) ? appConfig.getProtocol(e) : appConfig.getProtocol || req.protocol) + v
+        v = (_.isFunction(appConfig.getProtocol) ? appConfig.getProtocol(e) : appConfig.getProtocol || req.protocol) + ':' + v
       }
       return _.isFunction(appConfig.ignore)
         ? appConfig.ignore(e)
@@ -113,7 +113,7 @@ module.exports = (app, appConfig) => {
       const e = {link, arr: bodyStringArr, req, res};
       let theUrl = entities.decodeHTML(link)
       if(theUrl.startsWith('//')) {
-        theUrl = (_.isFunction(appConfig.getProtocol) ? appConfig.getProtocol(e) : appConfig.getProtocol || req.protocol) + theUrl
+        theUrl = (_.isFunction(appConfig.getProtocol) ? appConfig.getProtocol(e) : appConfig.getProtocol || req.protocol) + ':' + theUrl
       }
       return fetch(theUrl)
       .then(r => r.buffer())
