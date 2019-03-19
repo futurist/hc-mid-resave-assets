@@ -94,7 +94,7 @@ module.exports = (app, appConfig) => {
     }))).filter(v=>{
       const e = {link: v, arr: bodyStringArr, req, res};
       if(v.startsWith('//')) {
-        v = (_.isFunction(appConfig.getProtocol) ? appConfig.getProtocol(e) : req.protocol) + v
+        v = (_.isFunction(appConfig.getProtocol) ? appConfig.getProtocol(e) : appConfig.getProtocol || req.protocol) + v
       }
       return _.isFunction(appConfig.ignore)
         ? appConfig.ignore(e)
@@ -109,7 +109,13 @@ module.exports = (app, appConfig) => {
     }
 
     console.log('resave assets:', allLinks);
-    Promise.all(allLinks.map(link => fetch(entities.decodeHTML(link))
+    Promise.all(allLinks.map(link => {
+      const e = {link, arr: bodyStringArr, req, res};
+      let theUrl = entities.decodeHTML(link)
+      if(theUrl.startsWith('//')) {
+        theUrl = (_.isFunction(appConfig.getProtocol) ? appConfig.getProtocol(e) : appConfig.getProtocol || req.protocol) + theUrl
+      }
+      return fetch(theUrl)
       .then(r => r.buffer())
       .then(buffer => {
         const imgInfo = imageType(buffer);
@@ -142,7 +148,7 @@ module.exports = (app, appConfig) => {
           error
         };
       })
-    )).then(results => {
+    })).then(results => {
       debug('results', results, Date.now() - start);
       bodyStringArr.forEach(item => {
         results.forEach(({
@@ -176,11 +182,11 @@ function getLinksFromHTML(html) {
   var parser = new htmlparser.Parser({
     onopentag: function (name, attribs) {
       if (name == 'img') {
-        links.push(attribs.src);
+        links.push((attribs.src||'').trim());
       }
     },
   }, {decodeEntities: false});
   parser.write(html);
   parser.end();
-  return links;
+  return links.filter(Boolean);
 }
