@@ -58,33 +58,38 @@ module.exports = (app, appConfig) => {
       return next();
     }
 
-    const headerResavePath = headers['x-resave-path'];
     const urlsToCheck = _.map(appConfig.resavePath, (v, k) => {
       return [k, v.method];
     });
     const matchedPath = check(urlsToCheck, req.path, req.method);
-    const resavePath = !_.isEmpty(headerResavePath) ? qs.parse(headers['x-resave-path']) : matchedPath && appConfig.resavePath[matchedPath[0]];
+    const resavePath = matchedPath && appConfig.resavePath[matchedPath[0]];
     if (!resavePath) {
       return next();
     }
     const bodyStringArr = [];
-    _.forEach(resavePath, (arr, type) => {
-      if (/^(?:rich|html|md|markdown)$/i.test(type) && _.isArray(arr)) {
-        arr.forEach(path => {
+    _.forEach(resavePath, (value, type) => {
+      if (/^(?:rich|html|md|markdown)$/i.test(type) && _.isArray(value)) {
+        value.forEach(path => {
           let doc = _.get(body, path);
           if (!_.isString(doc) || !doc) return;
-          let html = doc;
-          if (/md|markdown/i.test(type)) {
-            html = md.render(doc) + '\n' + doc;
-          }
           bodyStringArr.push({
             type,
             path,
             doc,
-            html
           });
         });
       }
+      if(type=='getAssets' && _.isFunction(value)) {
+        Array.prototype.push.apply(bodyStringArr, value({body, req, res, appConfig}))
+      }
+      bodyStringArr.forEach(v=>{
+        const {doc, type} = v;
+        let html = doc;
+        if (/md|markdown/i.test(type)) {
+          html = md.render(doc) + '\n' + doc;
+        }
+        v.html = html;
+      })
     });
 
     const start = Date.now();
