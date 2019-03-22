@@ -80,9 +80,11 @@ module.exports = (app, appConfig) => {
         });
       }
       if(type=='getAssets' && _.isFunction(value)) {
-        Array.prototype.push.apply(bodyStringArr, value({body, req, res, appConfig}))
+        Array.prototype.push.apply(bodyStringArr, [].concat(value({body, req, res, appConfig})))
       }
-      bodyStringArr.forEach(v=>{
+      bodyStringArr
+      .filter(v=>v.doc && v.type)
+      .forEach(v=>{
         const {doc, type} = v;
         let html = doc;
         if (/md|markdown/i.test(type)) {
@@ -103,11 +105,12 @@ module.exports = (app, appConfig) => {
       if(v.startsWith('//')) {
         v = (_.isFunction(appConfig.getProtocol) ? appConfig.getProtocol(e) : appConfig.getProtocol || req.protocol) + ':' + v
       }
-      return _.isFunction(appConfig.ignore)
-        ? appConfig.ignore(e)
+      return urlMatch('*://*/*', v) && (_.isFunction(appConfig.ignore)
+        ? !appConfig.ignore(e)
         : [
           '*://*.aliyuncs.com/*'
         ].concat(appConfig.ignore).filter(Boolean).every(x=>!urlMatch(x, v))
+        )
       }
     );
 
