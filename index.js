@@ -15,7 +15,9 @@ const urlMatch = require('url-match-patterns').default;
 const imageType = require('image-type');
 const entities = require("entities");
 const MarkdownIt = require('markdown-it');
-const md = new MarkdownIt('default');
+const md = new MarkdownIt('default', {
+  html: true
+});
 
 const check = require('./check');
 
